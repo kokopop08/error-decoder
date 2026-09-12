@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>에러 디코더 — 로그만 붙여넣으면 원인·수정·재발방지까지</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --card: #ffffff;
+      --ink: #1f2330;
+      --muted: #667085;
+      --line: #e3e7ee;
+      --accent: #3b82f6;
+      --accent-2: #1d4ed8;
+      --bad: #b91c1c;
+      --warn: #b45309;
+      --ok: #15803d;
+      --shadow: 0 1px 2px rgba(16,24,40,0.06), 0 4px 12px rgba(16,24,40,0.06);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.55;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 28px 16px 56px; }
+    header.cta {
+      display: flex; gap: 12px; align-items: center; justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    h1 { font-size: 22px; margin: 0 0 6px; }
+    .lead { color: var(--muted); margin: 0 0 22px; font-size: 14px; }
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      padding: 18px; box-shadow: var(--shadow);
+    }
+    .row { display: flex; gap: 10px; align-items: stretch; }
+    textarea {
+      width: 100%; min-height: 130px; resize: vertical;
+      border: 1px solid var(--line); border-radius: 10px; padding: 12px;
+      font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      font-size: 13px; background: #fff;
+    }
+    textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+    button.btn {
+      appearance: none; border: 1px solid var(--line); background: #fff; color: var(--ink);
+      padding: 10px 14px; border-radius: 10px; font-size: 14px; cursor: pointer;
+      transition: background .15s, border-color .15s, color .15s;
+    }
+    button.btn:hover { background: #f0f3ff; border-color: var(--accent); color: var(--accent-2); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+    button.primary:hover { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+    button.ghost { background: transparent; border-color: var(--line); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .meta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .chip {
+      font-size: 12px; padding: 4px 10px; border-radius: 999px;
+      background: #eef2ff; color: var(--accent-2); border: 1px solid #c7d2fe;
+    }
+    .chip.bad { background: #fef2f2; color: var(--bad); border-color: #fecaca; }
+    .chip.warn { background: #fffbeb; color: var(--warn); border-color: #fde68a; }
+    .chip.ok { background: #f0fdf4; color: var(--ok); border-color: #bbf7d0; }
+    .chip.mid { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+    #result { margin-top: 18px; }
+    .section-title {
+      font-size: 13px; text-transform: uppercase; letter-spacing: .04em;
+      color: var(--muted); margin: 18px 0 8px; display:flex; justify-content:space-between; align-items:center;
+    }
+    .section-title .copy-btn { font-size: 12px; padding: 4px 10px; }
+    .guide pre {
+      background: #0f172a; color: #e2e8f0; border-radius: 8px; padding: 12px;
+      font-size: 12px; overflow-x: auto; white-space: pre-wrap; word-break: break-word;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    .guide code { font-family: inherit; }
+    ul.checklist { list-style: none; padding: 0; margin: 0; }
+    ul.checklist li {
+      padding: 6px 0 6px 26px; position: relative; border-bottom: 1px solid var(--line);
+      font-size: 14px;
+    }
+    ul.checklist li:last-child { border-bottom: none; }
+    ul.checklist li::before {
+      content: ""; position: absolute; left: 2px; top: 11px; width: 16px; height: 16px;
+      border: 1.5px solid var(--accent-2); border-radius: 4px; background: #fff;
+    }
+    .status { color: var(--muted); font-size: 13px; margin-top: 8px; }
+    .foot { margin-top: 28px; color: var(--muted); font-size: 12px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="cta">
+      <div>
+        <h1>에러 디코더</h1>
+        <p class="lead">터미널 에러 로그를 붙여넣으면, 오류 유형·위치·심각도 카드와 3단계 수정 가이드, 재발 방지 체크리스트를 바로 보여줍니다.</p>
+      </div>
+    </header>
+
+    <div class="card">
+      <label class="section-title">1. 에러 로그 붙여넣기</label>
+      <textarea id="log" placeholder="터미널에 나온 에러 로그 / 스택 트레이스를 여기에 붙여넣어 주세요."></textarea>
+      <div class="meta">
+        <button id="sampleBtn" class="btn" type="button">샘플 에러 불러오기</button>
+        <button id="runBtn" class="btn primary" type="button">분석하기</button>
+        <button id="clearBtn" class="btn ghost" type="button">지우기</button>
+      </div>
+      <div id="status" class="status hidden"></div>
+    </div>
+
+    <div id="result" class="hidden">
+      <div class="section-title">
+        <span>2. 에러 요약 카드</span>
+        <button id="copyCardBtn" class="btn ghost copy-btn" type="button">카드 복사</button>
+      </div>
+      <div id="summaryCard"></div>
+
+      <div class="section-title">
+        <span>3. 3단계 트러블슈팅 가이드</span>
+        <button id="copyGuideBtn" class="btn ghost copy-btn" type="button">가이드 복사</button>
+      </div>
+      <div id="guide" class="guide"></div>
+
+      <div class="section-title">
+        <span>4. 재발 방지 체크리스트</span>
+        <button id="copyChecklistBtn" class="btn ghost copy-btn" type="button">체크리스트 복사</button>
+      </div>
+      <ul id="checklist" class="checklist"></ul>
+    </div>
+
+    <div class="foot">
+      입력한 로그는 서버사이드에서 Solar Pro 4 API를 통해 분석됩니다. API 키는 서버에로만 전달되며, 브라우저에는 노출되지 않습니다.
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const logEl = document.getElementById('log');
+      const runBtn = document.getElementById('runBtn');
+      const sampleBtn = document.getElementById('sampleBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const status = document.getElementById('status');
+      const result = document.getElementById('result');
+      const summaryCard = document.getElementById('summaryCard');
+      const guide = document.getElementById('guide');
+      const checklist = document.getElementById('checklist');
+      const copyCardBtn = document.getElementById('copyCardBtn');
+      const copyGuideBtn = document.getElementById('copyGuideBtn');
+      const copyChecklistBtn = document.getElementById('copyChecklistBtn');
+
+      const SAMPLE_LOG = `Traceback (most recent call last):
+  File "/app/main.py", line 42, in handle_request
+    user = get_user(user_id)
+  File "/app/db.py", line 18, in get_user
+    return conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+  File "/usr/lib/python3.11/sqlite3/dbapi2.py", line 77, in execute
+    raise OperationalError("database is locked")
+sqlite3.OperationalError: database is locked`;
+
+      function setStatus(msg, isError) {
+        status.classList.remove('hidden');
+        status.textContent = msg;
+        status.style.color = isError ? 'var(--bad)' : 'var(--muted)';
+      }
+      function hideStatus() { status.classList.add('hidden'); status.textContent = ''; }
+
+      function disableButtons(disabled) {
+        runBtn.disabled = disabled;
+        sampleBtn.disabled = disabled;
+        clearBtn.disabled = disabled;
+      }
+
+      function showResult() { result.classList.remove('hidden'); }
+      function hideResult() { result.classList.add('hidden'); }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function renderSummaryCard(card) {
+        const severity = (card.severity || '').toLowerCase();
+        const chipClass = { '치명적':'bad','높음':'bad','중간':'warn','낮음':'ok' }[severity] || '';
+        summaryCard.innerHTML = `
+          <div class="card" style="background:#fff; border:1px solid var(--line);">
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
+              <span style="font-weight:700;">🛑 에러 원인 요약</span>
+              <span class="chip ${chipClass}">${escapeHtml(card.severity || '—')}</span>
+              <span class="chip">${escapeHtml(card.type || '—')}</span>
+            </div>
+            <div style="font-size:14px;">
+              <div><b>오류 유형</b> : ${escapeHtml(card.type || '—')}</div>
+              <div><b>발생 위치</b> : ${escapeHtml(card.location || '—')}</div>
+              <div><b>심각도</b> : ${escapeHtml(card.severity || '—')}</div>
+            </div>
+            ${card.note ? `<div style="margin-top:10px; color:var(--muted); font-size:13px;">${escapeHtml(card.note)}</div>` : ''}
+          </div>
+        `;
+      }
+
+      function renderGuide(guideSteps) {
+        guide.innerHTML = guideSteps.map((s, i) => {
+          const title = s.title || `단계 ${i + 1}`;
+          const body = s.body || '';
+          const blocks = (s.blocks || []).map(b => {
+            const lang = b.lang || 'text';
+            return `<h4>${escapeHtml(b.label || '')}</h4><pre><code>${escapeHtml(b.code)}</code></pre>`;
+          }).join('');
+          return `<div>
+            <h4>${escapeHtml(title)}</h4>
+            <div style="font-size:14px; margin-top:6px;">${escapeHtml(body)}</div>
+            ${blocks}
+          </div>`;
+        }).join('');
+      }
+
+      function renderChecklist(items) {
+        checklist.innerHTML = (items || []).map(t => `<li>${escapeHtml(t)}</li>`).join('');
+      }
+
+      async function analyze() {
+        hideResult();
+        hideStatus();
+        const text = logEl.value.trim();
+        if (!text) {
+          setStatus('에러 로그를 붙여넣어 주세요. 빈 입력이라 분석할 내용이 없습니다.', true);
+          return;
+        }
+        disableButtons(true);
+        try {
+          const res = await fetch('/api/decode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ log: text })
+          });
+          if (!res.ok) {
+            throw new Error(`서버 응답 오류: ${res.status}`);
+          }
+          const data = await res.json();
+          // 응답에 키가 섞여 있지 않은지 확인(클라이언트 측 안전 점검)
+          if (data && typeof data === 'object' && 'UPSTAGE_API_KEY' in data) {
+            console.warn('응답 JSON에 키가 포함되어 있습니다. 서버 측 점검이 필요합니다.');
+          }
+          renderSummaryCard(data.card || {});
+          renderGuide(data.guide || []);
+          renderChecklist(data.checklist || []);
+          showResult();
+          setStatus('분석 완료');
+        } catch (e) {
+          setStatus('분석 중 오류가 발생했습니다: ' + (e && e.message ? e.message : '알 수 없는 오류'), true);
+        } finally {
+          disableButtons(false);
+        }
+      }
+
+      function loadSample() {
+        logEl.value = SAMPLE_LOG;
+        hideStatus();
+        hideResult();
+        logEl.focus();
+      }
+
+      function clearAll() {
+        logEl.value = '';
+        hideStatus();
+        hideResult();
+        logEl.focus();
+      }
+
+      function copyText(text) {
+        if (!navigator.clipboard) {
+          const ta = document.createElement('textarea');
+          ta.value = text; document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); } catch (e) {}
+          document.body.removeChild(ta);
+          return;
+        }
+        navigator.clipboard.writeText(text);
+      }
+
+      function buildCardText() {
+        const parts = [];
+        const cardEl = summaryCard.querySelector('.card');
+        if (cardEl) parts.push(cardEl.innerText.trim().replace(/\s+/g, ' '));
+        return parts.join('\n\n');
+      }
+      function buildGuideText() {
+        return guide.innerText.trim().replace(/\s+/g, ' ');
+      }
+      function buildChecklistText() {
+        return checklist.innerText.trim().replace(/\s+/g, ' ');
+      }
+
+      runBtn.addEventListener('click', analyze);
+      sampleBtn.addEventListener('click', loadSample);
+      clearBtn.addEventListener('click', clearAll);
+
+      copyCardBtn.addEventListener('click', () => {
+        copyText(buildCardText() || '복사할 내용이 없습니다.');
+        setStatus('요약 카드 복사 완료');
+      });
+      copyGuideBtn.addEventListener('click', () => {
+        copyText(buildGuideText() || '복사할 내용이 없습니다.');
+        setStatus('가이드 복사 완료');
+      });
+      copyChecklistBtn.addEventListener('click', () => {
+        copyText(buildChecklistText() || '복사할 내용이 없습니다.');
+        setStatus('체크리스트 복사 완료');
+      });
+
+      // Enter로 제출(Shift+Enter는 개행 유지)
+      logEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          analyze();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
