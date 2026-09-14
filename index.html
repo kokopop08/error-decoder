@@ -197,7 +197,8 @@ sqlite3.OperationalError: database is locked`;
             </div>
             <div style="font-size:14px;">
               <div><b>오류 유형</b> : ${escapeHtml(card.type || '—')}</div>
-              <div><b>발생 위치</b> : ${escapeHtml(card.location || '—')}</div>
+              <div><b>크래시 지점</b> : ${escapeHtml(card.crashLocation || card.location || '—')}</div>
+              <div><b>원인지점</b> : ${escapeHtml(card.rootLocation || '—')}</div>
               <div><b>심각도</b> : ${escapeHtml(card.severity || '—')}</div>
             </div>
             ${card.note ? `<div style="margin-top:10px; color:var(--muted); font-size:13px;">${escapeHtml(card.note)}</div>` : ''}
@@ -216,6 +217,7 @@ sqlite3.OperationalError: database is locked`;
           return `<div>
             <h4>${escapeHtml(title)}</h4>
             <div style="font-size:14px; margin-top:6px;">${escapeHtml(body)}</div>
+            ${rootCauseNote ? `<div style="margin-top:6px; color:var(--muted); font-size:13px; border-left:2px solid var(--accent); padding-left:8px;"><b>참조 연쇄 노트</b> : ${escapeHtml(rootCauseNote)}</div>` : ''}
             ${blocks}
           </div>`;
         }).join('');
